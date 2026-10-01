@@ -1,8 +1,12 @@
 {
-  "name": "bot-panel",
+  "name": "bot-panel-railway",
+  "version": "2.0.0",
   "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
-    "node-telegram-bot-api": "^0.61.0",
-    "axios": "^1.6.0"
+    "telegraf": "^4.15.0",
+    "axios": "^1.6.7"
   }
 }
