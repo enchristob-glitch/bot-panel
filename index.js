@@ -1,165 +1,205 @@
-const { Telegraf, Markup } = require('telegraf');
+const { Telegraf, Markup, session } = require('telegraf');
 const axios = require('axios');
 
-const BOT_TOKEN = '8986890804:AAH_TQPREtQni3wgeixr3X3-xVkgAopm9FA';
-const PANEL_URL = 'https://panel-production-1e3d.up.railway.app';
-const API_KEY = '';
-const OWNER_USERNAME = '';
-const OWNER_ID = ''; // ID Telegram lu
+
+// KALO GAK PAKE.env TARO DI SINI GPP REK BUAT LOKAL!
+const BOT_TOKEN = '8837240784:AAH3_-SkyLfu1mmg2vh1NPkU-ir-KnUlSfU';
+const PANEL_DOMAIN = 'https://panel-production-1e3d.up.railway.app';
+const PANEL_API_KEY = 'ptla_XxSI2tsIJcL5QqrFuFn7a5JsXsMGn1HKPZUmPOPFSwx';
 
 const bot = new Telegraf(BOT_TOKEN);
-const userState = {};
+bot.use(session());
 
-bot.start(async (ctx) => {
-  const name = ctx.from.first_name;
-  const longText = `
-╭─〔 🚀 𝗣𝗧𝗘𝗥𝗢𝗗𝗔𝗖𝗧𝗬𝗟 𝗣𝗔𝗡𝗘𝗟 𝗙𝗥𝗘𝗘 〕─╮
+const SPEK_LIST = {
+  'spek_1gb': { ram: 1024, disk: 1024, cpu: 30, name: '1GB RAM | 1GB DISK | 30% CPU', short: '1GB' },
+  'spek_2gb': { ram: 2048, disk: 2048, cpu: 60, name: '2GB RAM | 2GB DISK | 60% CPU', short: '2GB' },
+  'spek_3gb': { ram: 3072, disk: 3072, cpu: 80, name: '3GB RAM | 3GB DISK | 80% CPU', short: '3GB' },
+  'spek_4gb': { ram: 4096, disk: 4096, cpu: 100, name: '4GB RAM | 4GB DISK | 100% CPU', short: '4GB' },
+  'spek_5gb': { ram: 5120, disk: 5120, cpu: 150, name: '5GB RAM | 5GB DISK | 150% CPU', short: '5GB' },
+  'spek_unli': { ram: 0, disk: 0, cpu: 0, name: 'UNLIMITED RAM DISK CPU', short: 'UNLI' }
+};
 
-Halo ${name} 👋
-Selamat datang di Bot Panel Auto Create!
+function randomString() { return 'user' + Math.floor(Math.random() * 9999); }
 
-┏━━━━━━━━━━━━━━━━━━━┓
-┃ 🤖 Apa itu Panel? ┃
-┗━━━━━━━━━━━━━━━━━━━┛
-Panel adalah wadah untuk menjalankan bot WhatsApp, Minecraft Server, dan script NodeJS 24 jam nonstop di VPS!
+// ===== AUTO CARI EGG VALID ANTI INVALID REK! INI KUNCI NYA! =====
+async function findValidEgg() {
+  let nests = await axios.get(PANEL_DOMAIN + '/api/application/nests', {
+    headers: { Authorization: 'Bearer ' + PANEL_API_KEY, Accept: 'Application/vnd.pterodactyl.v1+json' }
+  });
+  for (let nest of nests.data.data) {
+    let eggs = await axios.get(PANEL_DOMAIN + '/api/application/nests/' + nest.attributes.id + '/eggs', {
+      headers: { Authorization: 'Bearer ' + PANEL_API_KEY, Accept: 'Application/vnd.pterodactyl.v1+json' }
+    });
+    if (eggs.data.data.length > 0) {
+      let egg = eggs.data.data[0].attributes;
+      let docker = Object.values(egg.docker_images)[0];
+      return { nestId: nest.attributes.id, eggId: eggs.data.data[0].attributes.id, docker: docker, startup: egg.startup, name: egg.name };
+    }
+  }
+  throw new Error('GAK ADA EGG DI PANEL! IMPORT DULU!');
+}
 
-┏━━━━━━━━━━━━━━━━━━━┓
-┃ ✨ Fitur Panel Kami ┃
-┗━━━━━━━━━━━━━━━━━━━┛
-➥ ✅ RAM Unlimited
-➥ ✅ CPU High Performance
-➥ ✅ Anti Delay & Fast Install
-➥ ✅ Garansi Full & Support 24 Jam
-➥ ✅ Bisa Buat Bot WA / MC / Dll
+async function createPanelFinal(ctx) {
+  const s = ctx.session;
+  let msg = await ctx.reply('⏳ MEMULAI... AUTO DETEKSI EGG BIAR GAK INVALID LAGI REK!');
 
-┏━━━━━━━━━━━━━━━━━━━┓
-┃ 👑 Info Owner Bot ┃
-┗━━━━━━━━━━━━━━━━━━━┛
-➥ Owner: ${OWNER_USERNAME}
-➥ Status: Online & Trusted
-➥ Jualan Panel Sejak 2023
+  let steps = [
+    '⏳ 10% - Cek spek ' + s.spek.name,
+    '⏳ 30% - Bikin user ' + s.username,
+    '⏳ 50% - Cari Egg yang valid di panel...',
+    '⏳ 70% - Cari Allocation Free...',
+    '⏳ 85% - Bikin SERVER UTAMA Wings...',
+    '✅ 100% - SERVER UTAMA BERHASIL JADI REK!'
+  ];
+  for (let i = 0; i < steps.length; i++) {
+    await new Promise(r => setTimeout(r, 600));
+    await ctx.telegram.editMessageText(ctx.chat.id, msg.message_id, null, steps[i]).catch(() => {});
+  }
 
-Pencet tombol di bawah untuk mendapatkan panel gratis mu sekarang!
-╰───────────────────╯
-`;
+  try {
+    let userRes = await axios.post(PANEL_DOMAIN + '/api/application/users', {
+      username: s.username, email: s.email, first_name: s.username, last_name: 'Ganteng', password: s.password, root_admin: s.isAdmin
+    }, { headers: { Authorization: 'Bearer ' + PANEL_API_KEY, 'Content-Type': 'application/json', Accept: 'Application/vnd.pterodactyl.v1+json' } });
+    let userId = userRes.data.attributes.id;
 
-  await ctx.reply(longText, Markup.inlineKeyboard([
-    [Markup.button.callback('🎁 GET PANEL FREE', 'get_panel')],
-    [Markup.button.url('👑 OWNER', `https://t.me/${OWNER_USERNAME.replace('@','')}`), Markup.button.callback('📋 INFO BOT', 'info_bot')],
-  ]));
+    let nodes = await axios.get(PANEL_DOMAIN + '/api/application/nodes', { headers: { Authorization: 'Bearer ' + PANEL_API_KEY } });
+    let freeAlloc = null; let nodeId = null;
+    for (let node of nodes.data.data) {
+      let allocs = await axios.get(PANEL_DOMAIN + '/api/application/nodes/' + node.attributes.id + '/allocations', { headers: { Authorization: 'Bearer ' + PANEL_API_KEY } });
+      for (let a of allocs.data.data) { if (!a.attributes.assigned) { freeAlloc = a.attributes.id; nodeId = node.attributes.id; break; } }
+      if (freeAlloc) break;
+    }
+    if (!freeAlloc) throw new Error('GAK ADA ALLOCATION FREE! Bikin di Nodes > Allocation > Assign New 30000-30100');
+
+    // INI OPENING ANTI INVALID NYA REK!
+    let eggInfo = await findValidEgg();
+    console.log('PAKE EGG VALID REK:', eggInfo);
+
+    let varRes = await axios.get(PANEL_DOMAIN + '/api/application/nests/' + eggInfo.nestId + '/eggs/' + eggInfo.eggId + '?include=variables', { headers: { Authorization: 'Bearer ' + PANEL_API_KEY } });
+    let envVars = {};
+    for (let v of varRes.data.attributes.relationships.variables.data) {
+      envVars[v.attributes.env_variable] = v.attributes.default_value || ' ';
+    }
+
+    let serverData = {
+      name: s.username + '-UTAMA-' + s.spek.short,
+      description: 'SERVER UTAMA ' + s.spek.name + ' - ' + eggInfo.name,
+      user: userId,
+      egg: eggInfo.eggId,
+      docker_image: eggInfo.docker,
+      startup: eggInfo.startup,
+      environment: envVars,
+      limits: { memory: s.spek.ram, swap: 0, disk: s.spek.disk, io: 500, cpu: s.spek.cpu },
+      feature_limits: { databases: 1, allocations: 0, backups: 1 },
+      allocation: { default: freeAlloc, additional: [] }
+    };
+
+    let srv = await axios.post(PANEL_DOMAIN + '/api/application/servers', serverData, { headers: { Authorization: 'Bearer ' + PANEL_API_KEY } });
+
+    let hasil = '';
+    hasil += '╔════════════════════════════════╗\n';
+    hasil += '✅ SERVER UTAMA BERHASIL JADI REK!\n';
+    hasil += '╚════════════════════════════════╝\n';
+    hasil += '👤 Username: ' + s.username + '\n';
+    hasil += '🔑 Password: ' + s.password + '\n';
+    hasil += '📧 Email: ' + s.email + '\n';
+    hasil += '📦 Spek: ' + s.spek.name + '\n';
+    hasil += '🥚 Egg: ' + eggInfo.name + ' (ID: ' + eggInfo.eggId + ') - AUTO DETECT ANTI INVALID!\n';
+    hasil += '🖥️ Node: ' + nodeId + ' Alloc: ' + freeAlloc + '\n';
+    hasil += '🌐 Panel: ' + PANEL_DOMAIN + '\n';
+    hasil += '✅ TERPERCAYA ✅ GRATIS ✅ AMAN ✅ NO SCAM ✅ SUPPORT 24/7 REK!\n';
+
+    await ctx.reply(hasil, Markup.inlineKeyboard([
+      [Markup.button.url('🌐 LOGIN PANEL - LIAT SERVER UTAMA', PANEL_DOMAIN)],
+      [Markup.button.callback('📦 BIKIN LAGI', 'pilih_spek')]
+    ]));
+    s.step = null;
+  } catch (e) {
+    console.log(e.response?.data);
+    let err = e.response?.data?.errors?.[0]?.detail || e.message;
+    await ctx.reply('❌ GAGAL BIKIN SERVER UTAMA REK! ' + err);
+    s.step = null;
+  }
+}
+
+// ===== OPENING NYA DI SINI REK! =====
+bot.start((ctx) => {
+  ctx.session = {};
+  let t = '';
+  t += '╔════════════════════════════════════╗\n';
+  t += '✨ BOT PANEL + SERVER UTAMA WINGS ✨\n';
+  t += '╚════════════════════════════════════╝\n\n';
+  t += 'HALO ' + ctx.from.first_name + ' 😝\n\n';
+  t += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+  t += '✅ KENAPA HARUS DI BOT INI REK?\n';
+  t += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+  t += '✅ TERPERCAYA 100% - No scam!\n';
+  t += '✅ GRATIS 100% - Bikin sepuasnya!\n';
+  t += '✅ AMAN 100% - Password lu sendiri!\n';
+  t += '✅ NO SCAM 100% - Dijamin amanah!\n';
+  t += '✅ PAKE WINGS - Ada SERVER UTAMA langsung jadi!\n';
+  t += '✅ AUTO DETEKSI EGG - Anti Invalid!\n';
+  t += '✅ SUPPORT 24/7 - Online terus!\n\n';
+  t += 'GAS PILIH SPEK BUAT SERVER UTAMA REK!\n';
+  ctx.reply(t, Markup.inlineKeyboard([[Markup.button.callback('📦 PILIH SPEK SERVER UTAMA', 'pilih_spek')]]));
 });
 
-bot.action('info_bot', async (ctx) => {
-  await ctx.answerCbQuery();
-  const info = `
-🤖 𝗜𝗡𝗙𝗢𝗥𝗠𝗔𝗦𝗜 𝗕𝗢𝗧
-
-• Bot Name: Pterodactyl Auto Panel
-• Version: v2.0 Railway Edition
-• Panel URL: ${PANEL_URL}
-• Node: Railway High Performance
-• Developer: ${OWNER_USERNAME}
-
-Bot ini dibuat untuk auto create akun panel tanpa harus ribet login ke pterodactyl!
-
-Support: Telegram ${OWNER_USERNAME}
-`;
-  await ctx.reply(info);
+bot.action('pilih_spek', (ctx) => {
+  ctx.editMessageText('🚀 PILIH SPEK SERVER UTAMA REK! PAKE WINGS + AUTO EGG!',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('🔥 1GB - GRATIS ✅', 'spek_1gb')],
+      [Markup.button.callback('⚡ 2GB - GRATIS ✅', 'spek_2gb')],
+      [Markup.button.callback('🚀 3GB - GRATIS ✅', 'spek_3gb')],
+      [Markup.button.callback('💎 4GB - GRATIS ✅', 'spek_4gb')],
+      [Markup.button.callback('👑 5GB - GRATIS ✅', 'spek_5gb')],
+      [Markup.button.callback('💥 UNLI [ADMIN] - GRATIS ✅', 'spek_unli')]
+    ])
+  );
 });
 
-bot.action('get_panel', async (ctx) => {
-  await ctx.answerCbQuery();
-  userState[ctx.from.id] = { step: 'username' };
-  await ctx.reply('📝 𝗟𝗔𝗡𝗚𝗞𝗔𝗛 𝟭/𝟯\n\nSilahkan kirim *Username* untuk panel kamu:\nContoh: `aditganteng`\n\n_username minimal 5 huruf, tanpa spasi_', { parse_mode: 'Markdown' });
+Object.keys(SPEK_LIST).forEach(key => {
+  bot.action(key, (ctx) => {
+    ctx.session.spek = SPEK_LIST[key];
+    ctx.editMessageText('✅ SPEK: ' + SPEK_LIST[key].name + '\n\nMODE WINGS ON + AUTO EGG ANTI INVALID! KLIK CREATE REK!',
+      Markup.inlineKeyboard([[Markup.button.callback('🚀 CREATE SERVER UTAMA ' + SPEK_LIST[key].short, 'buat_panel_skrg')]])
+    );
+  });
 });
+
+bot.action('buat_panel_skrg', (ctx) => {
+  ctx.session.step = 'usn';
+  ctx.editMessageText('STEP 1/3 - USERNAME REK', Markup.inlineKeyboard([[Markup.button.callback('✨ AUTO USN GANTENG', 'auto_usn')]]));
+});
+bot.action('auto_usn', (ctx) => {
+  ctx.session.username = randomString();
+  ctx.session.step = 'pass';
+  ctx.editMessageText('✅ USN: ' + ctx.session.username + '\nSTEP 2/3 - PASSWORD', Markup.inlineKeyboard([[Markup.button.callback('🔑 AUTO PASS', 'auto_pass')]]));
+});
+bot.action('auto_pass', (ctx) => {
+  if (!ctx.session.username) ctx.session.username = randomString();
+  ctx.session.password = ctx.session.username + '123';
+  ctx.session.step = 'email';
+  ctx.editMessageText('✅ PASS: ' + ctx.session.password + '\nSTEP 3/3 - EMAIL', Markup.inlineKeyboard([[Markup.button.callback('📧 AUTO EMAIL', 'auto_email')]]));
+});
+bot.action('auto_email', (ctx) => {
+  ctx.session.email = ctx.session.username + '@gmail.com';
+  ctx.editMessageText('✅ EMAIL: ' + ctx.session.email + '\n\n👑 PILIH ROLE REK?', Markup.inlineKeyboard([[Markup.button.callback('👑 ADMIN', 'role_admin')], [Markup.button.callback('👤 USER', 'role_user')]]));
+});
+bot.action('role_admin', (ctx) => { ctx.session.isAdmin = true; createPanelFinal(ctx); });
+bot.action('role_user', (ctx) => { ctx.session.isAdmin = false; createPanelFinal(ctx); });
 
 bot.on('text', async (ctx) => {
-  const id = ctx.from.id;
-  const state = userState[id];
-  if (!state) return;
-  const text = ctx.message.text.trim();
-
-  if (state.step === 'username') {
-    if (text.length < 4) return ctx.reply('❌ Username terlalu pendek! Minimal 4 huruf, coba lagi:');
-    state.username = text;
-    state.step = 'password';
-    return ctx.reply(`✅ Username diset: \`${text}\`\n\n📝 𝗟𝗔𝗡𝗚𝗞𝗔𝗛 𝟮/𝟯\n\nSekarang kirim *Password* untuk panel kamu:\nContoh: \`Adit12345\`\n\n_password minimal 8 karakter_`, { parse_mode: 'Markdown' });
-  }
-
-  if (state.step === 'password') {
-    if (text.length < 8) return ctx.reply('❌ Password minimal 8 karakter! Coba lagi:');
-    state.password = text;
-    state.step = 'email';
-    return ctx.reply(`✅ Password aman!\n\n📝 𝗟𝗔𝗡𝗚𝗞𝗔𝗛 𝟯/𝟯\n\nTerakhir, kirim *Email* kamu yang valid:\nContoh: \`adit@gmail.com\``, { parse_mode: 'Markdown' });
-  }
-
-  if (state.step === 'email') {
-    if (!text.includes('@') ||!text.includes('.')) return ctx.reply('❌ Email tidak valid! Contoh: adit@gmail.com');
-    state.email = text;
-
-    // MULAI ANIMASI
-    let msg = await ctx.reply('⏳ Menyiapkan Panel Anda...\n[░░░░░░░░░░] 0%');
-
-    try {
-      const animate = async (percent, bar) => {
-        await new Promise(r => setTimeout(r, 600));
-        try { await ctx.telegram.editMessageText(ctx.chat.id, msg.message_id, null, `⏳ Menyiapkan Panel Anda...\n[${bar}] ${percent}%\n\n> Membuat akun untuk ${state.username}...`); } catch(e){}
-      };
-
-      await animate(20, '██░░░░░░░░');
-      await animate(50, '█████░░░░░');
-      await animate(80, '████████░░');
-
-      // CREATE USER DI PANEL
-      const response = await axios.post(`${PANEL_URL}/api/application/users`, {
-        username: state.username,
-        email: state.email,
-        first_name: state.username,
-        last_name: 'User',
-        password: state.password,
-      }, {
-        headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json', 'Accept': 'application/json' }
-      });
-
-      await animate(100, '██████████');
-      await ctx.telegram.editMessageText(ctx.chat.id, msg.message_id, null, '✅ Panel Berhasil Dibuat!');
-
-      const successText = `
-╭─〔 ✅ 𝗣𝗔𝗡𝗘𝗟 𝗕𝗘𝗥𝗛𝗔𝗦𝗜𝗟 〕─╮
-
-Hore! Panel kamu sudah jadi! 🎉
-
-┏━━━━━━━━━━━━━━━━━━━┓
-┃ 🔐 DETAIL AKUN MU ┃
-┗━━━━━━━━━━━━━━━━━━━┛
-➥ 🌐 Login URL: ${PANEL_URL}
-➥ 👤 Username: \`${state.username}\`
-➥ 🔑 Password: \`${state.password}\`
-➥ 📧 Email: ${state.email}
-➥ 🆔 User ID: ${response.data.attributes.id}
-
-Simpan data ini baik-baik ya!
-
-Cara pakai: Login ke URL di atas, nanti bisa upload bot / server kamu!
-
-Terimakasih sudah menggunakan bot kami ❤️
-Owner: ${OWNER_USERNAME}
-╰───────────────────╯
-`;
-      await ctx.reply(successText, { parse_mode: 'Markdown',...Markup.inlineKeyboard([
-        [Markup.button.url('🌐 BUKA PANEL', PANEL_URL)],
-        [Markup.button.url('👑 CHAT OWNER', `https://t.me/${OWNER_USERNAME.replace('@','')}`)]
-      ])});
-
-    } catch (err) {
-      console.log(err.response?.data || err.message);
-      let errorMsg = err.response?.data?.errors? JSON.stringify(err.response.data.errors) : err.message;
-      if (errorMsg.includes('email') || errorMsg.includes('username')) errorMsg = 'Username / Email sudah pernah dipakai! Coba pakai yang lain.';
-      await ctx.telegram.editMessageText(ctx.chat.id, msg.message_id, null, `❌ GAGAL MEMBUAT PANEL\n\nAlasan: ${errorMsg}\n\nCoba /start lagi!`);
-    }
-    delete userState[id];
+  const s = ctx.session; if (!s ||!s.step) return;
+  if (s.step === 'usn') { s.username = ctx.message.text.trim().toLowerCase().split(' ').join(''); s.step = 'pass'; return ctx.reply('✅ USN: ' + s.username, Markup.inlineKeyboard([[Markup.button.callback('🔑 AUTO PASS', 'auto_pass')]])); }
+  if (s.step === 'pass') { s.password = ctx.message.text.trim(); s.step = 'email'; return ctx.reply('✅ PASS', Markup.inlineKeyboard([[Markup.button.callback('📧 AUTO EMAIL', 'auto_email')]])); }
+  if (s.step === 'email') {
+    if (ctx.message.text.indexOf('@') === -1) return ctx.reply('Email harus ada @ rek!');
+    s.email = ctx.message.text.trim(); return ctx.reply('PILIH ROLE', Markup.inlineKeyboard([[Markup.button.callback('👑 ADMIN', 'role_admin')], [Markup.button.callback('👤 USER', 'role_user')]]));
   }
 });
 
 bot.launch();
-console.log('Bot Jalan Rek!');
+console.log('BOT WINGS + OPENING + AUTO EGG ON! ANTI INVALID!');
+
+
+
